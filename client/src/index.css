@@ -1,0 +1,116 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* Fresh green grocery palette */
+    --background: 120 20% 98%;
+    --foreground: 140 15% 12%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 140 15% 12%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 140 15% 12%;
+
+    --primary: 142 71% 35%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 120 15% 93%;
+    --secondary-foreground: 140 15% 20%;
+
+    --muted: 120 12% 95%;
+    --muted-foreground: 140 8% 50%;
+
+    --accent: 120 12% 93%;
+    --accent-foreground: 140 15% 20%;
+
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 120 10% 88%;
+    --input: 120 10% 88%;
+    --ring: 142 71% 35%;
+
+    --radius: 0.625rem;
+
+    --sidebar-background: 140 25% 97%;
+    --sidebar-foreground: 140 15% 25%;
+    --sidebar-primary: 142 71% 35%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 120 15% 92%;
+    --sidebar-accent-foreground: 140 15% 20%;
+    --sidebar-border: 120 10% 88%;
+    --sidebar-ring: 142 71% 35%;
+  }
+
+  .dark {
+    --background: 140 12% 9%;
+    --foreground: 120 8% 90%;
+
+    --card: 140 10% 12%;
+    --card-foreground: 120 8% 90%;
+
+    --popover: 140 10% 12%;
+    --popover-foreground: 120 8% 90%;
+
+    --primary: 142 60% 48%;
+    --primary-foreground: 140 15% 8%;
+
+    --secondary: 140 8% 18%;
+    --secondary-foreground: 120 8% 85%;
+
+    --muted: 140 8% 16%;
+    --muted-foreground: 120 5% 55%;
+
+    --accent: 140 8% 18%;
+    --accent-foreground: 120 8% 85%;
+
+    --destructive: 0 62% 50%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 140 8% 22%;
+    --input: 140 8% 22%;
+    --ring: 142 60% 48%;
+
+    --sidebar-background: 140 12% 11%;
+    --sidebar-foreground: 120 8% 80%;
+    --sidebar-primary: 142 60% 48%;
+    --sidebar-primary-foreground: 140 15% 8%;
+    --sidebar-accent: 140 8% 18%;
+    --sidebar-accent-foreground: 120 8% 85%;
+    --sidebar-border: 140 8% 20%;
+    --sidebar-ring: 142 60% 48%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+    font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+  }
+}
+
+/* Checked item styling */
+.item-checked .item-name {
+  text-decoration: line-through;
+  opacity: 0.45;
+}
+
+/* Smooth transitions */
+.item-row {
+  transition: opacity 200ms ease, background 150ms ease;
+}
+
+/* Store color dot */
+.store-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
