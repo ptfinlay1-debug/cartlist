@@ -1,58 +1,171 @@
-import type { Express } from "express";
+import type { Express, Request, Response, NextFunction } from "express";
 import { Server } from "http";
 import { storage } from "./storage";
-import { insertStoreSchema, insertItemSchema } from "@shared/schema";
-import { z } from "zod";
+import { insertListSchema, insertStoreSchema, insertItemSchema } from "@shared/schema";
+import bcrypt from "bcryptjs";
+import { randomBytes } from "crypto";
+
+// Session middleware
+function requireAuth(req: Request, res: Response, next: NextFunction) {
+  const sessionId = req.cookies?.session;
+  if (!sessionId) return res.status(401).json({ error: "Not authenticated" });
+
+  const session = storage.getSession(sessionId);
+  if (!session || session.expiresAt < Date.now()) {
+    if (session) storage.deleteSession(sessionId);
+    return res.status(401).json({ error: "Session expired" });
+  }
+
+  const user = storage.getUserById(session.userId);
+  if (!user) return res.status(401).json({ error: "User not found" });
+
+  (req as any).user = user;
+  next();
+}
 
 export function registerRoutes(httpServer: Server, app: Express) {
-  // === STORES ===
-  app.get("/api/stores", (req, res) => {
-    res.json(storage.getStores());
+  // Parse cookies
+  app.use((req, res, next) => {
+    const cookieHeader = req.headers.cookie ?? "";
+    const cookies: Record<string, string> = {};
+    cookieHeader.split(";").forEach((part) => {
+      const [k, ...v] = part.trim().split("=");
+      if (k) cookies[k.trim()] = decodeURIComponent(v.join("="));
+    });
+    (req as any).cookies = cookies;
+    next();
   });
 
-  app.post("/api/stores", (req, res) => {
-    const result = insertStoreSchema.safeParse(req.body);
+  // === AUTH ===
+  app.post("/api/auth/signup", async (req, res) => {
+    const { email, password, name } = req.body;
+    if (!email || !password) return res.status(400).json({ error: "Email and password required" });
+    if (password.length < 6) return res.status(400).json({ error: "Password must be at least 6 characters" });
+
+    const existing = storage.getUserByEmail(email.toLowerCase());
+    if (existing) return res.status(400).json({ error: "An account with that email already exists" });
+
+    const passwordHash = await bcrypt.hash(password, 10);
+    const user = storage.createUser({ email: email.toLowerCase(), passwordHash, name: name ?? "" });
+
+    const sessionId = randomBytes(32).toString("hex");
+    const expiresAt = Date.now() + 30 * 24 * 60 * 60 * 1000; // 30 days
+    storage.createSession({ id: sessionId, userId: user.id, expiresAt });
+
+    res.setHeader("Set-Cookie", `session=${sessionId}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${30 * 24 * 60 * 60}`);
+    res.json({ id: user.id, email: user.email, name: user.name });
+  });
+
+  app.post("/api/auth/login", async (req, res) => {
+    const { email, password } = req.body;
+    if (!email || !password) return res.status(400).json({ error: "Email and password required" });
+
+    const user = storage.getUserByEmail(email.toLowerCase());
+    if (!user) return res.status(401).json({ error: "Invalid email or password" });
+
+    const valid = await bcrypt.compare(password, user.passwordHash);
+    if (!valid) return res.status(401).json({ error: "Invalid email or password" });
+
+    const sessionId = randomBytes(32).toString("hex");
+    const expiresAt = Date.now() + 30 * 24 * 60 * 60 * 1000;
+    storage.createSession({ id: sessionId, userId: user.id, expiresAt });
+
+    res.setHeader("Set-Cookie", `session=${sessionId}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${30 * 24 * 60 * 60}`);
+    res.json({ id: user.id, email: user.email, name: user.name });
+  });
+
+  app.post("/api/auth/logout", requireAuth, (req, res) => {
+    const sessionId = (req as any).cookies?.session;
+    if (sessionId) storage.deleteSession(sessionId);
+    res.setHeader("Set-Cookie", "session=; Path=/; HttpOnly; Max-Age=0");
+    res.json({ success: true });
+  });
+
+  app.get("/api/auth/me", requireAuth, (req, res) => {
+    const user = (req as any).user;
+    res.json({ id: user.id, email: user.email, name: user.name });
+  });
+
+  // === LISTS ===
+  app.get("/api/lists", requireAuth, (req, res) => {
+    const user = (req as any).user;
+    res.json(storage.getLists(user.id));
+  });
+
+  app.post("/api/lists", requireAuth, (req, res) => {
+    const user = (req as any).user;
+    const result = insertListSchema.safeParse({ ...req.body, userId: user.id });
+    if (!result.success) return res.status(400).json({ error: result.error });
+    res.json(storage.createList(result.data));
+  });
+
+  app.patch("/api/lists/:id", requireAuth, (req, res) => {
+    const user = (req as any).user;
+    const list = storage.updateList(parseInt(req.params.id), user.id, req.body);
+    if (!list) return res.status(404).json({ error: "List not found" });
+    res.json(list);
+  });
+
+  app.delete("/api/lists/:id", requireAuth, (req, res) => {
+    const user = (req as any).user;
+    storage.deleteList(parseInt(req.params.id), user.id);
+    res.json({ success: true });
+  });
+
+  // === STORES ===
+  app.get("/api/stores", requireAuth, (req, res) => {
+    const user = (req as any).user;
+    res.json(storage.getStores(user.id));
+  });
+
+  app.post("/api/stores", requireAuth, (req, res) => {
+    const user = (req as any).user;
+    const result = insertStoreSchema.safeParse({ ...req.body, userId: user.id });
     if (!result.success) return res.status(400).json({ error: result.error });
     res.json(storage.createStore(result.data));
   });
 
-  app.patch("/api/stores/:id", (req, res) => {
-    const id = parseInt(req.params.id);
-    const store = storage.updateStore(id, req.body);
+  app.patch("/api/stores/:id", requireAuth, (req, res) => {
+    const user = (req as any).user;
+    const store = storage.updateStore(parseInt(req.params.id), user.id, req.body);
     if (!store) return res.status(404).json({ error: "Store not found" });
     res.json(store);
   });
 
-  app.delete("/api/stores/:id", (req, res) => {
-    storage.deleteStore(parseInt(req.params.id));
+  app.delete("/api/stores/:id", requireAuth, (req, res) => {
+    const user = (req as any).user;
+    storage.deleteStore(parseInt(req.params.id), user.id);
     res.json({ success: true });
   });
 
   // === ITEMS ===
-  app.get("/api/items", (req, res) => {
-    res.json(storage.getItems());
+  app.get("/api/items", requireAuth, (req, res) => {
+    const listId = parseInt(req.query.listId as string);
+    if (isNaN(listId)) return res.status(400).json({ error: "listId required" });
+    res.json(storage.getItemsByList(listId));
   });
 
-  app.post("/api/items", (req, res) => {
+  app.post("/api/items", requireAuth, (req, res) => {
     const result = insertItemSchema.safeParse(req.body);
     if (!result.success) return res.status(400).json({ error: result.error });
     res.json(storage.createItem(result.data));
   });
 
-  app.patch("/api/items/:id", (req, res) => {
-    const id = parseInt(req.params.id);
-    const item = storage.updateItem(id, req.body);
+  app.patch("/api/items/:id", requireAuth, (req, res) => {
+    const item = storage.updateItem(parseInt(req.params.id), req.body);
     if (!item) return res.status(404).json({ error: "Item not found" });
     res.json(item);
   });
 
-  app.delete("/api/items/:id", (req, res) => {
+  app.delete("/api/items/:id", requireAuth, (req, res) => {
     storage.deleteItem(parseInt(req.params.id));
     res.json({ success: true });
   });
 
-  app.post("/api/items/clear-checked", (req, res) => {
-    storage.clearCheckedItems();
+  app.post("/api/items/clear-checked", requireAuth, (req, res) => {
+    const { listId } = req.body;
+    if (!listId) return res.status(400).json({ error: "listId required" });
+    storage.clearCheckedItems(parseInt(listId));
     res.json({ success: true });
   });
 }
