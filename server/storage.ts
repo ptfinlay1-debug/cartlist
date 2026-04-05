@@ -8,7 +8,7 @@ import {
 } from "@shared/schema";
 
 const connectionString = process.env.DATABASE_URL!;
-const client = postgres(connectionString);
+const client = postgres(connectionString, { ssl: { rejectUnauthorized: false } });
 const db = drizzle(client);
 
 // Run migrations (create tables if not exist)
