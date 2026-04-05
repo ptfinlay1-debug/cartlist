@@ -1,9 +1,11 @@
 services:
   - type: web
-    name: cartlist
+    name: CartList
     env: node
     buildCommand: npm install && npm run build
     startCommand: NODE_ENV=production node dist/index.cjs
     envVars:
       - key: NODE_ENV
         value: production
+      - key: DATABASE_URL
+        value: postgresql://cartlist_db_user:21u4pS4bxfxBcjmXtA96UaqV2HgwZkHK@dpg-d79dp0mdqaus73dfhc8g-a/cartlist_db

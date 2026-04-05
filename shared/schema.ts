@@ -1,43 +1,43 @@
-import { sqliteTable, text, integer, real } from "drizzle-orm/sqlite-core";
+import { pgTable, text, integer, real, serial, boolean } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
-export const users = sqliteTable("users", {
-  id: integer("id").primaryKey({ autoIncrement: true }),
+export const users = pgTable("users", {
+  id: serial("id").primaryKey(),
   email: text("email").notNull().unique(),
   passwordHash: text("password_hash").notNull(),
   name: text("name").notNull().default(""),
 });
 
-export const sessions = sqliteTable("sessions", {
+export const sessions = pgTable("sessions", {
   id: text("id").primaryKey(),
   userId: integer("user_id").notNull().references(() => users.id),
   expiresAt: integer("expires_at").notNull(),
 });
 
-export const lists = sqliteTable("lists", {
-  id: integer("id").primaryKey({ autoIncrement: true }),
+export const lists = pgTable("lists", {
+  id: serial("id").primaryKey(),
   userId: integer("user_id").notNull().references(() => users.id),
   name: text("name").notNull(),
   emoji: text("emoji").notNull().default("🛒"),
 });
 
-export const stores = sqliteTable("stores", {
-  id: integer("id").primaryKey({ autoIncrement: true }),
+export const stores = pgTable("stores", {
+  id: serial("id").primaryKey(),
   userId: integer("user_id").notNull().references(() => users.id),
   name: text("name").notNull(),
   color: text("color").notNull().default("#22c55e"),
 });
 
-export const items = sqliteTable("items", {
-  id: integer("id").primaryKey({ autoIncrement: true }),
+export const items = pgTable("items", {
+  id: serial("id").primaryKey(),
   listId: integer("list_id").references(() => lists.id).notNull(),
   name: text("name").notNull(),
   storeId: integer("store_id").references(() => stores.id),
   price: real("price"),
   quantity: text("quantity").notNull().default("1"),
   unit: text("unit").notNull().default(""),
-  checked: integer("checked", { mode: "boolean" }).notNull().default(false),
+  checked: boolean("checked").notNull().default(false),
   note: text("note").notNull().default(""),
   category: text("category").notNull().default(""),
 });
